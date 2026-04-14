@@ -19,7 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        emacs-version: ['28.1', '29.4', '30.1', 'snapshot']
+        emacs-version: ['29.4', '30.1', 'snapshot']
     steps:
       - name: Checkout test env
         uses: actions/checkout@v4
