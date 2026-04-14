@@ -21,4 +21,5 @@ dist/
 
 # IDE
 .claude/
+CLAUDE.md
 .vscode/
