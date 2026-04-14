@@ -71,9 +71,16 @@ jobs:
           cp profiles/doom/init.el ~/.config/doom/init.el
           cp profiles/doom/packages.el ~/.config/doom/packages.el
           cp profiles/doom/config.el ~/.config/doom/config.el
-          ~/.config/emacs/bin/doom install --no-env --no-fonts
+          ~/.config/emacs/bin/doom install --no-env
         env:
           DOOMDIR: ${{ github.workspace }}/profiles/doom
+
+      - name: Prepare fixtures
+        run: |
+          WORK_DIR=$(mktemp -d)
+          cp -r fixtures/instance-a "$WORK_DIR/"
+          cp -r fixtures/instance-b "$WORK_DIR/"
+          echo "EOR_WORK_DIR=$WORK_DIR" >> "$GITHUB_ENV"
 
       - name: Run E2E tests (doom)
         env:
@@ -114,6 +121,13 @@ jobs:
           cp profiles/spacemacs/.spacemacs ~/.spacemacs
           # Bootstrap Spacemacs packages
           emacs --batch -l ~/.emacs.d/init.el --kill 2>&1 || true
+
+      - name: Prepare fixtures
+        run: |
+          WORK_DIR=$(mktemp -d)
+          cp -r fixtures/instance-a "$WORK_DIR/"
+          cp -r fixtures/instance-b "$WORK_DIR/"
+          echo "EOR_WORK_DIR=$WORK_DIR" >> "$GITHUB_ENV"
 
       - name: Run E2E tests (spacemacs)
         env:
