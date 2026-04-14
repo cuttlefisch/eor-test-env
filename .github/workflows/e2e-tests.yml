@@ -36,10 +36,24 @@ jobs:
         with:
           version: ${{ matrix.emacs-version }}
 
+      - name: Prepare fixtures
+        run: |
+          WORK_DIR=$(mktemp -d)
+          cp -r fixtures/instance-a "$WORK_DIR/"
+          cp -r fixtures/instance-b "$WORK_DIR/"
+          echo "EOR_WORK_DIR=$WORK_DIR" >> "$GITHUB_ENV"
+
       - name: Run E2E tests (vanilla)
         env:
           EOR_PACKAGE_DIR: ${{ github.workspace }}/endless-org-roam
-        run: ./scripts/run-tests.sh --profile=vanilla
+          EOR_EMACS_DIR: ${{ runner.temp }}/eor-straight
+        run: |
+          # Use the vanilla profile's init.el to bootstrap straight.el
+          # and install org-roam, then run the E2E test suite
+          emacs --batch \
+            -l profiles/vanilla/init.el \
+            -l tests/test-e2e-common.el \
+            -f eor-e2e-run-all
 
   e2e-doom:
     name: "Doom Emacs ${{ matrix.emacs-version }}"
@@ -71,9 +85,7 @@ jobs:
           cp profiles/doom/init.el ~/.config/doom/init.el
           cp profiles/doom/packages.el ~/.config/doom/packages.el
           cp profiles/doom/config.el ~/.config/doom/config.el
-          ~/.config/emacs/bin/doom install --no-env
-        env:
-          DOOMDIR: ${{ github.workspace }}/profiles/doom
+          DOOMDIR="$HOME/.config/doom" ~/.config/emacs/bin/doom install --no-env
 
       - name: Prepare fixtures
         run: |
@@ -86,8 +98,10 @@ jobs:
         env:
           EOR_PACKAGE_DIR: ${{ github.workspace }}/endless-org-roam
         run: |
-          # Use Doom's Emacs launcher for proper environment
-          ~/.config/emacs/bin/doom run --batch \
+          # Use --init-directory to load Doom's full package environment
+          # DOOMDIR tells Doom where to find user config (init.el, packages.el)
+          DOOMDIR="$HOME/.config/doom" emacs --batch \
+            --init-directory="$HOME/.config/emacs" \
             -L "$EOR_PACKAGE_DIR" \
             -l tests/test-e2e-common.el \
             -f eor-e2e-run-all
