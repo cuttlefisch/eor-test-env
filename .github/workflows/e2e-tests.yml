@@ -78,14 +78,12 @@ jobs:
         with:
           version: ${{ matrix.emacs-version }}
 
-      - name: Install Doom Emacs
-        run: |
-          git clone --depth 1 https://github.com/doomemacs/doomemacs ~/.config/emacs
-          mkdir -p ~/.config/doom
-          cp profiles/doom/init.el ~/.config/doom/init.el
-          cp profiles/doom/packages.el ~/.config/doom/packages.el
-          cp profiles/doom/config.el ~/.config/doom/config.el
-          DOOMDIR="$HOME/.config/doom" ~/.config/emacs/bin/doom install --no-env
+      - name: Setup Cask
+        uses: conao3/setup-cask@master
+
+      - name: Install dependencies
+        working-directory: endless-org-roam
+        run: cask install
 
       - name: Prepare fixtures
         run: |
@@ -97,13 +95,10 @@ jobs:
       - name: Run E2E tests (doom)
         env:
           EOR_PACKAGE_DIR: ${{ github.workspace }}/endless-org-roam
+        working-directory: endless-org-roam
         run: |
-          # Use --init-directory to load Doom's full package environment
-          # DOOMDIR tells Doom where to find user config (init.el, packages.el)
-          DOOMDIR="$HOME/.config/doom" emacs --batch \
-            --init-directory="$HOME/.config/emacs" \
-            -L "$EOR_PACKAGE_DIR" \
-            -l tests/test-e2e-common.el \
+          cask exec emacs --batch \
+            -l ../tests/test-e2e-common.el \
             -f eor-e2e-run-all
 
   e2e-spacemacs:

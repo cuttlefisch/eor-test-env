@@ -7,12 +7,17 @@
 ;;
 ;;; Code:
 
+;; Override user-emacs-directory if EOR_EMACS_DIR is set, so
+;; straight.el installs into an isolated location in CI.
+(when (getenv "EOR_EMACS_DIR")
+  (setq user-emacs-directory
+        (file-name-as-directory (getenv "EOR_EMACS_DIR"))))
+
 ;; Bootstrap straight.el
 (defvar bootstrap-version)
 (let ((bootstrap-file
        (expand-file-name "straight/repos/straight.el/bootstrap.el"
-                         (or (getenv "EOR_EMACS_DIR")
-                             user-emacs-directory)))
+                         user-emacs-directory))
       (bootstrap-version 7))
   (unless (file-exists-p bootstrap-file)
     (with-current-buffer
