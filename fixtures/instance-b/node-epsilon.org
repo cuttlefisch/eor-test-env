@@ -1,0 +1,6 @@
+:PROPERTIES:
+:ID:       b2000002-0000-0000-0000-000000000002
+:END:
+#+title: Epsilon Node
+
+Another test node in instance B for search testing.

@@ -1,0 +1,12 @@
+:PROPERTIES:
+:ID:       aaaaaaaa-1111-2222-3333-444444444444
+:EOR_INSTANCE_ID: aaaaaaaa-1111-2222-3333-444444444444
+:EOR_INSTANCE_NAME: test-instance-a
+:END:
+#+title: EOR Instance: test-instance-a
+
+This is a fixture org-roam instance for E2E testing.
+
+- Instance ID: aaaaaaaa-1111-2222-3333-444444444444
+- Instance Name: test-instance-a
+- Purpose: E2E test fixtures

@@ -1,0 +1,57 @@
+name: Weekly org-roam Compatibility
+on:
+  schedule:
+    # Every Monday at 06:00 UTC
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+jobs:
+  compat-test:
+    name: "org-roam HEAD + Emacs ${{ matrix.emacs-version }}"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        emacs-version: ['29.4', '30.1', 'snapshot']
+    steps:
+      - name: Checkout test env
+        uses: actions/checkout@v4
+
+      - name: Checkout endless-org-roam
+        uses: actions/checkout@v4
+        with:
+          repository: cuttlefisch/endless-org-roam
+          ref: prototype
+          path: endless-org-roam
+
+      - name: Setup Emacs
+        uses: purcell/setup-emacs@master
+        with:
+          version: ${{ matrix.emacs-version }}
+
+      - name: Setup Cask
+        uses: conao3/setup-cask@master
+
+      - name: Run unit tests
+        working-directory: endless-org-roam
+        run: |
+          cask install
+          make test
+
+      - name: Run E2E tests (vanilla)
+        env:
+          EOR_PACKAGE_DIR: ${{ github.workspace }}/endless-org-roam
+        run: ./scripts/run-tests.sh --profile=vanilla
+
+      - name: Notify on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `org-roam HEAD compatibility failure (Emacs ${{ matrix.emacs-version }})`,
+              body: `Weekly compatibility test failed.\n\nRun: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              labels: ['bug', 'upstream']
+            })

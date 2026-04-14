@@ -1,0 +1,8 @@
+:PROPERTIES:
+:ID:       b2000001-0000-0000-0000-000000000001
+:END:
+#+title: Delta Node
+
+This is a test node in instance B.
+
+Used as a cross-instance link target from instance A.

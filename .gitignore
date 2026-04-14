@@ -15,3 +15,10 @@ dist/
 
 # Undo-tree save-files
 *.~undo-tree
+
+# OS
+.DS_Store
+
+# IDE
+.claude/
+.vscode/

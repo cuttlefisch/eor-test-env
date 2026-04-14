@@ -1,0 +1,13 @@
+:PROPERTIES:
+:ID:       a1000003-0000-0000-0000-000000000003
+:END:
+#+title: Gamma Node
+
+This node has tags and aliases for testing search.
+
+* Subheading with content
+:PROPERTIES:
+:ID:       a1000003-0000-0000-0000-000000000004
+:END:
+
+A headline-level node for testing nested resolution.

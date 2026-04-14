@@ -1,0 +1,6 @@
+:PROPERTIES:
+:ID:       a1000002-0000-0000-0000-000000000002
+:END:
+#+title: Beta Node
+
+This is a second test node in instance A.

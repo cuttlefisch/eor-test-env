@@ -1,0 +1,8 @@
+:PROPERTIES:
+:ID:       a1000001-0000-0000-0000-000000000001
+:END:
+#+title: Alpha Node
+
+This is a test node in instance A.
+
+It links to [[id:a1000002-0000-0000-0000-000000000002][Beta Node]] in the same instance.

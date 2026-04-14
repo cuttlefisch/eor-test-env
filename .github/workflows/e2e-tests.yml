@@ -1,0 +1,162 @@
+name: E2E Tests
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  # Allow manual trigger
+  workflow_dispatch:
+    inputs:
+      eor-ref:
+        description: 'endless-org-roam git ref to test'
+        default: 'prototype'
+        type: string
+
+jobs:
+  e2e-vanilla:
+    name: "Vanilla Emacs ${{ matrix.emacs-version }}"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        emacs-version: ['28.1', '29.4', '30.1', 'snapshot']
+    steps:
+      - name: Checkout test env
+        uses: actions/checkout@v4
+
+      - name: Checkout endless-org-roam
+        uses: actions/checkout@v4
+        with:
+          repository: cuttlefisch/endless-org-roam
+          ref: ${{ inputs.eor-ref || 'prototype' }}
+          path: endless-org-roam
+
+      - name: Setup Emacs
+        uses: purcell/setup-emacs@master
+        with:
+          version: ${{ matrix.emacs-version }}
+
+      - name: Run E2E tests (vanilla)
+        env:
+          EOR_PACKAGE_DIR: ${{ github.workspace }}/endless-org-roam
+        run: ./scripts/run-tests.sh --profile=vanilla
+
+  e2e-doom:
+    name: "Doom Emacs ${{ matrix.emacs-version }}"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        emacs-version: ['29.4', '30.1']
+    steps:
+      - name: Checkout test env
+        uses: actions/checkout@v4
+
+      - name: Checkout endless-org-roam
+        uses: actions/checkout@v4
+        with:
+          repository: cuttlefisch/endless-org-roam
+          ref: ${{ inputs.eor-ref || 'prototype' }}
+          path: endless-org-roam
+
+      - name: Setup Emacs
+        uses: purcell/setup-emacs@master
+        with:
+          version: ${{ matrix.emacs-version }}
+
+      - name: Install Doom Emacs
+        run: |
+          git clone --depth 1 https://github.com/doomemacs/doomemacs ~/.config/emacs
+          mkdir -p ~/.config/doom
+          cp profiles/doom/init.el ~/.config/doom/init.el
+          cp profiles/doom/packages.el ~/.config/doom/packages.el
+          cp profiles/doom/config.el ~/.config/doom/config.el
+          ~/.config/emacs/bin/doom install --no-env --no-fonts
+        env:
+          DOOMDIR: ${{ github.workspace }}/profiles/doom
+
+      - name: Run E2E tests (doom)
+        env:
+          EOR_PACKAGE_DIR: ${{ github.workspace }}/endless-org-roam
+        run: |
+          # Use Doom's Emacs launcher for proper environment
+          ~/.config/emacs/bin/doom run --batch \
+            -L "$EOR_PACKAGE_DIR" \
+            -l tests/test-e2e-common.el \
+            -f eor-e2e-run-all
+
+  e2e-spacemacs:
+    name: "Spacemacs Emacs ${{ matrix.emacs-version }}"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        emacs-version: ['29.4', '30.1']
+    steps:
+      - name: Checkout test env
+        uses: actions/checkout@v4
+
+      - name: Checkout endless-org-roam
+        uses: actions/checkout@v4
+        with:
+          repository: cuttlefisch/endless-org-roam
+          ref: ${{ inputs.eor-ref || 'prototype' }}
+          path: endless-org-roam
+
+      - name: Setup Emacs
+        uses: purcell/setup-emacs@master
+        with:
+          version: ${{ matrix.emacs-version }}
+
+      - name: Install Spacemacs
+        run: |
+          git clone --depth 1 https://github.com/syl20bnr/spacemacs ~/.emacs.d
+          cp profiles/spacemacs/.spacemacs ~/.spacemacs
+          # Bootstrap Spacemacs packages
+          emacs --batch -l ~/.emacs.d/init.el --kill 2>&1 || true
+
+      - name: Run E2E tests (spacemacs)
+        env:
+          EOR_PACKAGE_DIR: ${{ github.workspace }}/endless-org-roam
+        run: |
+          emacs --batch \
+            -l ~/.emacs.d/init.el \
+            -L "$EOR_PACKAGE_DIR" \
+            -l tests/test-e2e-common.el \
+            -f eor-e2e-run-all
+
+  # Weekly test against org-roam HEAD to catch upstream breakage
+  org-roam-compat:
+    name: "org-roam HEAD compatibility"
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Checkout test env
+        uses: actions/checkout@v4
+
+      - name: Checkout endless-org-roam
+        uses: actions/checkout@v4
+        with:
+          repository: cuttlefisch/endless-org-roam
+          ref: ${{ inputs.eor-ref || 'prototype' }}
+          path: endless-org-roam
+
+      - name: Checkout org-roam HEAD
+        uses: actions/checkout@v4
+        with:
+          repository: org-roam/org-roam
+          path: org-roam-head
+
+      - name: Setup Emacs
+        uses: purcell/setup-emacs@master
+        with:
+          version: '30.1'
+
+      - name: Setup Cask
+        uses: conao3/setup-cask@master
+
+      - name: Run unit tests against org-roam HEAD
+        working-directory: endless-org-roam
+        run: |
+          cask install
+          make test

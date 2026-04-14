@@ -1,0 +1,12 @@
+:PROPERTIES:
+:ID:       bbbbbbbb-1111-2222-3333-444444444444
+:EOR_INSTANCE_ID: bbbbbbbb-1111-2222-3333-444444444444
+:EOR_INSTANCE_NAME: test-instance-b
+:END:
+#+title: EOR Instance: test-instance-b
+
+This is a second fixture org-roam instance for E2E testing.
+
+- Instance ID: bbbbbbbb-1111-2222-3333-444444444444
+- Instance Name: test-instance-b
+- Purpose: Cross-instance link target
