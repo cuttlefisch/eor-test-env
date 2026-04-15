@@ -183,9 +183,10 @@ jobs:
             -l scripts/demo.el \
             -f eor-demo-run
 
-  # Weekly test against org-roam HEAD to catch upstream breakage
+  # Upstream breakage detection — only runs on weekly schedule or manual dispatch,
+  # never on push/PR (upstream instability should not block merges)
   org-roam-compat:
-    name: "org-roam HEAD compatibility"
+    name: "org-roam HEAD compat (weekly / manual only)"
     runs-on: ubuntu-latest
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     steps:
