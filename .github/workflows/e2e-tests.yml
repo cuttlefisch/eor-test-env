@@ -148,6 +148,41 @@ jobs:
             -l tests/test-e2e-common.el \
             -f eor-e2e-run-all
 
+  # Demo validation -- ensures demo.sh doesn't bitrot
+  demo:
+    name: "Demo (Emacs 30.1)"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout test env
+        uses: actions/checkout@v4
+
+      - name: Checkout endless-org-roam
+        uses: actions/checkout@v4
+        with:
+          repository: cuttlefisch/endless-org-roam
+          ref: ${{ inputs.eor-ref || 'prototype' }}
+          path: endless-org-roam
+
+      - name: Setup Emacs
+        uses: purcell/setup-emacs@master
+        with:
+          version: '30.1'
+
+      - name: Run demo
+        env:
+          EOR_PACKAGE_DIR: ${{ github.workspace }}/endless-org-roam
+          EOR_EMACS_DIR: ${{ runner.temp }}/eor-straight
+        run: |
+          WORK_DIR=$(mktemp -d)
+          cp -r fixtures/instance-a "$WORK_DIR/"
+          cp -r fixtures/instance-b "$WORK_DIR/"
+          export EOR_WORK_DIR="$WORK_DIR"
+          # Bootstrap straight.el + org-roam, then run demo
+          emacs --batch \
+            -l profiles/vanilla/init.el \
+            -l scripts/demo.el \
+            -f eor-demo-run
+
   # Weekly test against org-roam HEAD to catch upstream breakage
   org-roam-compat:
     name: "org-roam HEAD compatibility"
