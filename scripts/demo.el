@@ -42,6 +42,144 @@
   "Print a list item TEXT."
   (message "    • %s" text))
 
+;;; ASCII Knowledge Graph
+
+(defun eor-demo--truncate (str max-len)
+  "Truncate STR to MAX-LEN, adding ellipsis if needed."
+  (if (<= (length str) max-len)
+      str
+    (concat (substring str 0 (- max-len 1)) "…")))
+
+(defun eor-demo--pad (str width)
+  "Right-pad STR to WIDTH with spaces."
+  (let ((pad (- width (length str))))
+    (if (> pad 0)
+        (concat str (make-string pad ?\s))
+      str)))
+
+(defun eor-demo--render-graph ()
+  "Render an ASCII map of all federated knowledge bases.
+Dynamically builds the visualization from registry and node data."
+  (let* ((instances (eor-registry-list))
+         (instance-data
+          (mapcar
+           (lambda (inst)
+             (let* ((name (alist-get :name inst))
+                    (inst-id (alist-get :id inst))
+                    (nodes (eor-transport-node-list inst))
+                    (user-nodes
+                     (seq-filter
+                      (lambda (n)
+                        (not (string-prefix-p "EOR Instance:"
+                                              (org-roam-node-title n))))
+                      nodes))
+                    (sorted (sort (mapcar #'org-roam-node-title user-nodes)
+                                  #'string<)))
+               (list :name name
+                     :id (substring inst-id 0 8)
+                     :node-count (length nodes)
+                     :user-count (length user-nodes)
+                     :titles sorted)))
+           instances))
+         ;; Calculate box width: widest node title + padding
+         (max-title
+          (apply #'max
+                 (mapcar (lambda (d)
+                           (apply #'max 10
+                                  (mapcar #'length (plist-get d :titles))))
+                         instance-data)))
+         (box-inner (min (+ max-title 6) 38))
+         (box-outer (+ box-inner 2))
+         (gap "     ")
+         (num-instances (length instance-data))
+         (total-width (+ (* box-outer num-instances)
+                         (* (length gap) (1- num-instances)))))
+
+    (message "")
+    ;; Top border
+    (message "  %s"
+             (mapconcat
+              (lambda (_) (concat "┌" (make-string box-inner ?─) "┐"))
+              instance-data gap))
+
+    ;; Instance name row
+    (message "  %s"
+             (mapconcat
+              (lambda (d)
+                (let ((label (format " ◈ %s" (plist-get d :name))))
+                  (concat "│"
+                          (eor-demo--pad label box-inner)
+                          "│")))
+              instance-data gap))
+
+    ;; ID + node count row
+    (message "  %s"
+             (mapconcat
+              (lambda (d)
+                (let ((info (format "   %s… · %d nodes"
+                                    (plist-get d :id)
+                                    (plist-get d :node-count))))
+                  (concat "│"
+                          (eor-demo--pad info box-inner)
+                          "│")))
+              instance-data gap))
+
+    ;; Separator
+    (message "  %s"
+             (mapconcat
+              (lambda (_) (concat "│" (make-string box-inner ?─) "│"))
+              instance-data gap))
+
+    ;; Node rows — iterate up to the max node count
+    (let ((max-nodes (apply #'max
+                            (mapcar (lambda (d) (length (plist-get d :titles)))
+                                    instance-data))))
+      (dotimes (i max-nodes)
+        (message "  %s"
+                 (mapconcat
+                  (lambda (d)
+                    (let* ((titles (plist-get d :titles))
+                           (title (nth i titles))
+                           (cell (if title
+                                     (format "   ● %s"
+                                             (eor-demo--truncate
+                                              title (- box-inner 5)))
+                                   "")))
+                      (concat "│"
+                              (eor-demo--pad cell box-inner)
+                              "│")))
+                  instance-data gap))))
+
+    ;; Bottom border
+    (message "  %s"
+             (mapconcat
+              (lambda (_) (concat "└" (make-string box-inner ?─) "┘"))
+              instance-data gap))
+
+    ;; Federation connector
+    (let* ((half (/ total-width 2))
+           (label "EOR Federation")
+           (label-len (length label))
+           (left-arm (- half (/ label-len 2) 1))
+           (right-arm (- total-width left-arm label-len 2)))
+      (message "  %s%s%s"
+               (make-string (max 1 left-arm) ?\s)
+               (concat "╲" (make-string (max 0 (- (/ label-len 2) 1)) ?\s))
+               (concat (make-string (max 0 (- (/ label-len 2) 1)) ?\s) "╱"))
+      (message "  %s%s%s%s%s"
+               (make-string (max 1 (- left-arm 1)) ?\s)
+               "╚══"
+               (format " %s " label)
+               "══╝"
+               "")
+      ;; Arrow showing cross-instance links
+      (message "  %s"
+               (eor-demo--pad
+                (format "%s◀── eor: links ──▶%s"
+                        (make-string (max 1 (- half 10)) ?\s)
+                        "")
+                total-width)))))
+
 ;;; Demo Runner
 
 (defun eor-demo-run ()
@@ -177,6 +315,10 @@
                              (length all-nodes)
                              (length (eor-registry-list)))))
 
+    ;; ── 7. Knowledge Graph Map ──
+    (eor-demo--header "Federation map")
+    (eor-demo--render-graph)
+
     ;; ── Summary ──
     (message "")
     (message "═══════════════════════════════════════════════════════")
@@ -188,6 +330,7 @@
     (message "   • Queried across instance boundaries")
     (message "   • Linked with eor: links (targeted + local-first)")
     (message "   • Searched together with unified candidates")
+    (message "   • Mapped as a federated knowledge graph")
     (message "═══════════════════════════════════════════════════════"))
 
   (kill-emacs 0))
