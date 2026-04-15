@@ -135,11 +135,13 @@ tests/
 
 ## Version Bumping
 
-Version is automatically bumped on merged PRs to `main` using conventional commit analysis:
+Version is automatically bumped on merged PRs to `main`. PR labels take precedence:
 
-- `feat!:` → major bump
-- `feat:` → minor bump
-- `fix:`, `docs:`, `test:`, etc. → patch bump
+- `release:major` → major bump (0.1.0 → 1.0.0)
+- `release:minor` → minor bump (0.1.0 → 0.2.0)
+- `release:patch` → patch bump (0.1.0 → 0.1.1)
+
+Without a label, bump type is inferred from conventional commit prefixes (`feat!:` → major, `feat:` → minor, else → patch).
 
 ## Relationship to Unit Tests
 
@@ -150,4 +152,4 @@ Version is automatically bumped on merged PRs to `main` using conventional commi
 
 ## License
 
-GPL-3.0-or-later
+[GPL-3.0-or-later](LICENSE)
