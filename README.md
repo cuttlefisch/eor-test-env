@@ -36,7 +36,7 @@ The demo builds real org-roam databases from the fixture KBs, registers them in 
 
 The demo runs in batch mode — it does **not** touch your Emacs config, org-roam databases, or any files outside a temporary directory. Everything is fully isolated and cleaned up on exit.
 
-**Prerequisites:** Emacs 29.1+ with org-roam available. If you use Doom Emacs with org-roam installed, the demo auto-detects your straight.el packages (no network needed). Otherwise it bootstraps straight.el into a temp directory.
+**Prerequisites:** Emacs 29.4+ with org-roam available. If you use Doom Emacs with org-roam installed, the demo auto-detects your straight.el packages (no network needed). Otherwise it bootstraps straight.el into a temp directory.
 
 ```bash
 # Clone both repos side by side
