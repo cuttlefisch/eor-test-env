@@ -16,6 +16,10 @@ dist/
 # Undo-tree save-files
 *.~undo-tree
 
+# Databases
+*.db
+*.sqlite
+
 # OS
 .DS_Store
 
