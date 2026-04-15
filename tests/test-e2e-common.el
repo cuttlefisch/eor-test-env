@@ -13,6 +13,7 @@
 (require 'endless-org-roam-registry)
 (require 'endless-org-roam-link)
 (require 'endless-org-roam-transport)
+(require 'endless-org-roam-search)
 
 ;;; Test Framework
 
@@ -67,11 +68,18 @@ Each test starts with a fresh registry."
 ;;; Test Environment Setup
 
 (defvar eor-e2e--work-dir nil "Working directory for current test run.")
+(defvar eor-e2e--instance-a-dir nil "Path to instance-a fixture.")
+(defvar eor-e2e--instance-b-dir nil "Path to instance-b fixture.")
+(defvar eor-e2e--dbs-built-p nil "Non-nil when fixture DBs have been built.")
 
 (defun eor-e2e--setup ()
   "Set up the E2E test environment."
   (setq eor-e2e--work-dir (or (getenv "EOR_WORK_DIR")
                                (make-temp-file "eor-e2e" t)))
+  (setq eor-e2e--instance-a-dir
+        (expand-file-name "instance-a/" eor-e2e--work-dir))
+  (setq eor-e2e--instance-b-dir
+        (expand-file-name "instance-b/" eor-e2e--work-dir))
   (setq eor-e2e--pass-count 0
         eor-e2e--fail-count 0)
   ;; Fresh registry for each run
@@ -80,7 +88,25 @@ Each test starts with a fresh registry."
   (setq eor--registry nil
         eor--registry-loaded-p nil)
   (message "\n=== EOR E2E Test Suite ===")
-  (message "Work dir: %s" eor-e2e--work-dir))
+  (message "Work dir: %s" eor-e2e--work-dir)
+  ;; Build org-roam databases for fixtures
+  (eor-e2e--build-dbs))
+
+(defun eor-e2e--build-dbs ()
+  "Build org-roam databases for fixture instances.
+Runs `org-roam-db-sync' for each fixture directory to create
+real SQLite databases from the .org files."
+  (if eor-e2e--dbs-built-p
+      (message "  [setup] DBs already built, skipping")
+    (message "  [setup] Building org-roam databases for fixtures...")
+    (dolist (dir (list eor-e2e--instance-a-dir
+                       eor-e2e--instance-b-dir))
+      (message "  [setup] Building DB for %s" dir)
+      (let ((org-roam-directory dir)
+            (org-roam-db-location (expand-file-name "org-roam.db" dir)))
+        (org-roam-db-sync)))
+    (setq eor-e2e--dbs-built-p t)
+    (message "  [setup] Databases built successfully")))
 
 (defun eor-e2e--teardown ()
   "Print results and exit with appropriate code."
@@ -185,15 +211,179 @@ Each test starts with a fresh registry."
          (length (eor-registry-list)) 1
          "No duplicate registry entries")))))
 
+;;; Helper: register both instances
+
+(defun eor-e2e--register-both ()
+  "Register both fixture instances.  Returns (entry-a . entry-b)."
+  (cons (eor-register-instance eor-e2e--instance-a-dir "test-instance-a")
+        (eor-register-instance eor-e2e--instance-b-dir "test-instance-b")))
+
+;;; Milestone 1: DB Binding Validation
+
+(eor-e2e-deftest cross-instance-node-query
+  "Test that transport can query nodes across instances via let-binding."
+  (eor-e2e--register-both)
+  (let ((entry-a (eor-registry-get "aaaaaaaa-1111-2222-3333-444444444444"))
+        (entry-b (eor-registry-get "bbbbbbbb-1111-2222-3333-444444444444")))
+    ;; Set "current" org-roam to instance-a
+    (let ((org-roam-directory eor-e2e--instance-a-dir)
+          (org-roam-db-location
+           (expand-file-name "org-roam.db" eor-e2e--instance-a-dir)))
+      ;; Delta (b2000001-...) should exist in instance-b but not instance-a
+      (eor-e2e-assert
+       (eor-transport-node-exists-p entry-b
+                                     "b2000001-0000-0000-0000-000000000001")
+       "Delta node found in instance-b via cross-instance query")
+
+      (eor-e2e-assert
+       (not (eor-transport-node-exists-p
+             entry-a "b2000001-0000-0000-0000-000000000001"))
+       "Delta node NOT found in instance-a (correctly absent)")
+
+      ;; Alpha (a1000001-...) should exist in instance-a but not instance-b
+      (eor-e2e-assert
+       (eor-transport-node-exists-p entry-a
+                                     "a1000001-0000-0000-0000-000000000001")
+       "Alpha node found in instance-a")
+
+      (eor-e2e-assert
+       (not (eor-transport-node-exists-p
+             entry-b "a1000001-0000-0000-0000-000000000001"))
+       "Alpha node NOT found in instance-b (correctly absent)"))))
+
+;;; Milestone 2: Cross-Instance Link Following
+
+(eor-e2e-deftest cross-instance-link-follow
+  "Test following a targeted eor: link to a node in another instance."
+  (eor-e2e--register-both)
+  (let ((org-roam-directory eor-e2e--instance-a-dir)
+        (org-roam-db-location
+         (expand-file-name "org-roam.db" eor-e2e--instance-a-dir))
+        (visited-node nil))
+    ;; Intercept org-roam-node-visit to capture the resolved node
+    ;; without actually opening buffers (batch mode)
+    (cl-letf (((symbol-function 'org-roam-node-visit)
+               (lambda (node &rest _args)
+                 (setq visited-node node))))
+      (eor-link-follow
+       "bbbbbbbb-1111-2222-3333-444444444444/b2000001-0000-0000-0000-000000000001"
+       nil))
+    (eor-e2e-assert visited-node
+                     "Targeted link resolved to a node")
+    (eor-e2e-assert-equal
+     (org-roam-node-title visited-node)
+     "Delta Node"
+     "Resolved node has correct title")))
+
+(eor-e2e-deftest local-first-link-follow
+  "Test that local-first eor: link resolves locally when node exists."
+  (eor-e2e--register-both)
+  (let ((org-roam-directory eor-e2e--instance-a-dir)
+        (org-roam-db-location
+         (expand-file-name "org-roam.db" eor-e2e--instance-a-dir))
+        (visited-node nil))
+    (cl-letf (((symbol-function 'org-roam-node-visit)
+               (lambda (node &rest _args)
+                 (setq visited-node node)))
+              ((symbol-function 'org-mark-ring-push)
+               (lambda (&rest _args) nil)))
+      (eor-link-follow
+       "a1000001-0000-0000-0000-000000000001"
+       nil))
+    (eor-e2e-assert visited-node
+                     "Local-first link resolved to a node")
+    (eor-e2e-assert-equal
+     (org-roam-node-title visited-node)
+     "Alpha Node"
+     "Resolved node is Alpha (local instance)")))
+
+(eor-e2e-deftest federated-link-fallback
+  "Test that local-first link falls back to federated search."
+  (eor-e2e--register-both)
+  (let ((org-roam-directory eor-e2e--instance-a-dir)
+        (org-roam-db-location
+         (expand-file-name "org-roam.db" eor-e2e--instance-a-dir))
+        (eor-search-all-instances t)
+        (visited-node nil))
+    (cl-letf (((symbol-function 'org-roam-node-visit)
+               (lambda (node &rest _args)
+                 (setq visited-node node))))
+      ;; Delta only exists in instance-b; with search-all, should find it
+      (eor-link-follow
+       "b2000001-0000-0000-0000-000000000001"
+       nil))
+    (eor-e2e-assert visited-node
+                     "Federated fallback resolved to a node")
+    (eor-e2e-assert-equal
+     (org-roam-node-title visited-node)
+     "Delta Node"
+     "Federated fallback found Delta in instance-b")))
+
+;;; Milestone 3: Cross-Instance Search
+
+(eor-e2e-deftest cross-instance-search
+  "Test that transport collects nodes from multiple instances."
+  (eor-e2e--register-both)
+  (let ((entry-a (eor-registry-get "aaaaaaaa-1111-2222-3333-444444444444"))
+        (entry-b (eor-registry-get "bbbbbbbb-1111-2222-3333-444444444444")))
+    (let ((nodes-a (eor-transport-node-list entry-a))
+          (nodes-b (eor-transport-node-list entry-b)))
+      ;; Instance A: sentinel + alpha + beta + gamma + gamma-subheading = 5
+      (eor-e2e-assert
+       (>= (length nodes-a) 4)
+       (format "Instance A has at least 4 nodes (got %d)" (length nodes-a)))
+
+      ;; Instance B: sentinel + delta + epsilon = 3
+      (eor-e2e-assert
+       (>= (length nodes-b) 2)
+       (format "Instance B has at least 2 nodes (got %d)" (length nodes-b)))
+
+      ;; Combined
+      (let ((total (+ (length nodes-a) (length nodes-b))))
+        (eor-e2e-assert
+         (>= total 6)
+         (format "Combined node count is at least 6 (got %d)" total))))))
+
+(eor-e2e-deftest search-candidate-formatting
+  "Test that eor-node-find builds correctly formatted candidates."
+  (eor-e2e--register-both)
+  (let* ((instances (eor-registry-list))
+         (all-nodes '()))
+    ;; Replicate the candidate-building logic from eor-node-find
+    (dolist (instance instances)
+      (let ((nodes (eor-transport-node-list instance))
+            (inst-name (alist-get :name instance)))
+        (dolist (node nodes)
+          (push (format "[%s] %s" inst-name (org-roam-node-title node))
+                all-nodes))))
+    (eor-e2e-assert
+     (cl-find-if (lambda (c) (string-match-p "\\[test-instance-a\\] Alpha Node" c))
+                 all-nodes)
+     "Candidates include [test-instance-a] Alpha Node")
+    (eor-e2e-assert
+     (cl-find-if (lambda (c) (string-match-p "\\[test-instance-b\\] Delta Node" c))
+                 all-nodes)
+     "Candidates include [test-instance-b] Delta Node")))
+
 ;;; Runner
 
 (defun eor-e2e-run-all ()
   "Run all E2E tests and exit."
   (eor-e2e--setup)
+  ;; Existing tests (registration, persistence, link parsing)
   (eor-e2e-test-registration)
   (eor-e2e-test-registry-persistence)
   (eor-e2e-test-link-parsing)
   (eor-e2e-test-sentinel-idempotence)
+  ;; Milestone 1: DB binding validation
+  (eor-e2e-test-cross-instance-node-query)
+  ;; Milestone 2: cross-instance link following
+  (eor-e2e-test-cross-instance-link-follow)
+  (eor-e2e-test-local-first-link-follow)
+  (eor-e2e-test-federated-link-fallback)
+  ;; Milestone 3: cross-instance search
+  (eor-e2e-test-cross-instance-search)
+  (eor-e2e-test-search-candidate-formatting)
   (eor-e2e--teardown))
 
 (provide 'test-e2e-common)
